@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit User - Library Management System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100">
+    <div class="min-h-screen">
+        <!-- Navigation -->
+        <nav class="bg-blue-800 text-white p-4">
+            <div class="container mx-auto flex justify-between items-center">
+                <h1 class="text-2xl font-bold">Library Management System</h1>
+                <div class="space-x-4">
+                    <a href="/users" class="hover:text-blue-200">Back to Users</a>
+                    <a href="/logout" class="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">Logout</a>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <div class="container mx-auto p-8">
+            <div class="max-w-2xl mx-auto">
+                <div class="bg-white rounded-lg shadow-md p-6">
+                    <h2 class="text-2xl font-bold text-gray-800 mb-6">Edit User</h2>
+
+                    {% if error %}
+                    <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
+                        <span class="block sm:inline">{{ error }}</span>
+                    </div>
+                    {% endif %}
+
+                    <form action="/users/{{ user._id }}/edit" method="POST" class="space-y-6">
+                        <!-- User ID -->
+                        <div>
+                            <label for="userId" class="block text-sm font-medium text-gray-700">User ID</label>
+                            <input type="text" name="userId" id="userId" value="{{ user.userId }}" required
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                        </div>
+
+                        <!-- Name -->
+                        <div>
+                            <label for="name" class="block text-sm font-medium text-gray-700">Full Name</label>
+                            <input type="text" name="name" id="name" value="{{ user.name }}" required
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                        </div>
+
+                        <!-- Email -->
+                        <div>
+                            <label for="email" class="block text-sm font-medium text-gray-700">Email</label>
+                            <input type="email" name="email" id="email" value="{{ user.email }}" required
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                        </div>
+
+                        <!-- Role -->
+                        <div>
+                            <label for="role" class="block text-sm font-medium text-gray-700">Role</label>
+                            <select name="role" id="role" required
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                                <option value="">Select Role</option>
+                                <option value="staff" {% if user.role == 'staff' %}selected{% endif %}>Staff</option>
+                                <option value="user" {% if user.role == 'user' %}selected{% endif %}>User</option>
+                            </select>
+                        </div>
+
+                        <!-- Password Reset -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Password</label>
+                            <div class="mt-1 flex items-center space-x-4">
+                                <input type="password" name="password" id="password" placeholder="Leave empty to keep current password"
+                                    class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                                <button type="button" onclick="generatePassword()" class="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600">
+                                    Generate
+                                </button>
+                            </div>
+                            <p class="mt-1 text-sm text-gray-500">Leave empty to keep current password</p>
+                        </div>
+
+                        <!-- Submit Button -->
+                        <div class="flex justify-end space-x-4">
+                            <a href="/users" class="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600">Cancel</a>
+                            <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+                                Update User
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function generatePassword() {
+            const length = 8;
+            const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*";
+            let password = "";
+            for (let i = 0; i < length; i++) {
+                const randomIndex = Math.floor(Math.random() * charset.length);
+                password += charset[randomIndex];
+            }
+            document.getElementById('password').value = password;
+        }
+    </script>
+</body>
+</html> 

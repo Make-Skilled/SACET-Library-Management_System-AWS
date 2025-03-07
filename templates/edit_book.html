@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Book - Library Management System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100">
+    <div class="min-h-screen">
+        <!-- Navigation -->
+        <nav class="bg-blue-800 text-white p-4">
+            <div class="container mx-auto flex justify-between items-center">
+                <h1 class="text-2xl font-bold">Library Management System</h1>
+                <div class="space-x-4">
+                    <a href="/books" class="hover:text-blue-200">Back to Books</a>
+                    <a href="/logout" class="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">Logout</a>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <div class="container mx-auto p-8">
+            <div class="max-w-2xl mx-auto">
+                <div class="bg-white rounded-lg shadow-md p-6">
+                    <h2 class="text-2xl font-bold text-gray-800 mb-6">Edit Book</h2>
+
+                    {% if error %}
+                    <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
+                        <span class="block sm:inline">{{ error }}</span>
+                    </div>
+                    {% endif %}
+
+                    <form action="/books/{{ book._id }}/edit" method="POST" enctype="multipart/form-data" class="space-y-6">
+                        <!-- Book Cover -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Current Cover Image</label>
+                            {% if book.cover_image %}
+                            <img src="{{ url_for('static', filename=book.cover_image) }}" alt="Book Cover" class="mt-2 h-48 w-32 object-cover rounded shadow-md">
+                            {% else %}
+                            <div class="mt-2 h-48 w-32 bg-gray-200 rounded flex items-center justify-center shadow-md">
+                                <i class="fas fa-book text-4xl text-gray-400"></i>
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Update Cover Image</label>
+                            <input type="file" name="cover_image" accept="image/*" class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+                            <p class="mt-1 text-sm text-gray-500">Leave empty to keep current image</p>
+                        </div>
+
+                        <!-- Title -->
+                        <div>
+                            <label for="title" class="block text-sm font-medium text-gray-700">Title</label>
+                            <input type="text" name="title" id="title" value="{{ book.title }}" required
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                        </div>
+
+                        <!-- Author -->
+                        <div>
+                            <label for="author" class="block text-sm font-medium text-gray-700">Author</label>
+                            <input type="text" name="author" id="author" value="{{ book.author }}" required
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                        </div>
+
+                        <!-- ISBN -->
+                        <div>
+                            <label for="isbn" class="block text-sm font-medium text-gray-700">ISBN</label>
+                            <input type="text" name="isbn" id="isbn" value="{{ book.isbn }}" required
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                        </div>
+
+                        <!-- Department -->
+                        <div>
+                            <label for="department" class="block text-sm font-medium text-gray-700">Department</label>
+                            <select name="department" id="department" required
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                                <option value="">Select Department</option>
+                                <option value="Computer Science" {% if book.department == 'Computer Science' %}selected{% endif %}>Computer Science</option>
+                                <option value="Electronics" {% if book.department == 'Electronics' %}selected{% endif %}>Electronics</option>
+                                <option value="Mechanical" {% if book.department == 'Mechanical' %}selected{% endif %}>Mechanical</option>
+                                <option value="Civil" {% if book.department == 'Civil' %}selected{% endif %}>Civil</option>
+                                <option value="Information Technology" {% if book.department == 'Information Technology' %}selected{% endif %}>Information Technology</option>
+                                <option value="Science" {% if book.department == 'Science' %}selected{% endif %}>Science</option>
+                                <option value="Humanities" {% if book.department == 'Humanities' %}selected{% endif %}>Humanities</option>
+                            </select>
+                        </div>
+
+                        <!-- Book Count -->
+                        <div>
+                            <label for="book_count" class="block text-sm font-medium text-gray-700">Total Copies</label>
+                            <input type="number" name="book_count" id="book_count" value="{{ book.book_count }}" required min="0"
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                        </div>
+
+                        <!-- Submit Button -->
+                        <div class="flex justify-end space-x-4">
+                            <a href="/books" class="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600">Cancel</a>
+                            <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+                                Update Book
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html> 
