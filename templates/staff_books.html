@@ -13,16 +13,14 @@
         <div class="container mx-auto flex justify-between items-center">
             <h1 class="text-2xl font-bold">Library Management System</h1>
             <div class="space-x-4">
-                <span class="text-blue-200">Welcome, Admin</span>
-                <a href="{% if session.get('role') == 'admin' %}/admin{% elif session.get('role') == 'staff' %}/staff-dashboard{% else %}/student-dashboard{% endif %}" class="hover:text-blue-200">Dashboard</a>
+                <span class="text-blue-200">Welcome, {{ session.get('name', 'Staff') }}</span>
+                <a href="/staff-dashboard" class="hover:text-blue-200">Dashboard</a>
                 {% if session.get('role') == 'staff' %}
                 <a href="/lend-book" class="hover:text-blue-200">Lend Book</a>
                 {% endif %}
-                {% if session.get('role') in ['admin', 'staff'] %}
-                <!-- <a href="/borrowed-books" class="hover:text-blue-200">Borrowed Books</a> -->
+                <a href="/borrowed-books" class="hover:text-blue-200">Borrowed Books</a>
                 <a href="/users" class="hover:text-blue-200">Users</a>
                 <a href="/books" class="hover:text-blue-200">Books</a>
-                {% endif %}
                 <a href="/logout" class="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">Logout</a>
             </div>
         </div>
@@ -85,9 +83,6 @@
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ISBN</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Department</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Available Copies</th>
-                            {% if session.get('role') == 'admin' %}
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                            {% endif %}
                         </tr>
                     </thead>
                     <tbody class="bg-white divide-y divide-gray-200">
@@ -122,18 +117,10 @@
                                     {{ book.book_count - book.borrowed_count }} / {{ book.book_count }}
                                 </span>
                             </td>
-                            {% if session.get('role') == 'admin' %}
-                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                <a href="/books/{{ book._id }}" class="text-blue-600 hover:text-blue-900 mr-4">Edit</a>
-                                <form action="/books/{{ book._id }}/delete" method="POST" class="inline">
-                                    <button type="submit" class="text-red-600 hover:text-red-900" onclick="return confirm('Are you sure you want to delete this book?')">Delete</button>
-                                </form>
-                            </td>
-                            {% endif %}
                         </tr>
                         {% else %}
                         <tr>
-                            <td colspan="{% if session.get('role') == 'admin' %}7{% else %}6{% endif %}" class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">
+                            <td colspan="6" class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">
                                 No books found.
                             </td>
                         </tr>

@@ -127,41 +127,24 @@ def admin_dashboard():
         # Get counts for dashboard
         users_count = db.users.count_documents({})
         books_count = db.books.count_documents({})
-        total_books = sum(book.get('book_count', 0) for book in db.books.find())
-        borrowed_count = sum(1 for book in db.books.find() if book.get('borrowed_count', 0) > 0)
         
-        # Get recent activities
-        recent_activities = [
-            {
-                'description': 'New book added: "The Great Gatsby"',
-                'timestamp': '2 minutes ago'
-            },
-            {
-                'description': 'User "John Doe" borrowed "1984"',
-                'timestamp': '15 minutes ago'
-            },
-            {
-                'description': 'New user registered: "Jane Smith"',
-                'timestamp': '1 hour ago'
-            },
-            {
-                'description': 'Book "To Kill a Mockingbird" returned',
-                'timestamp': '2 hours ago'
-            }
-        ]
+        # Get recently added books (last 5)
+        recent_books = list(db.books.find().sort('created_at', -1).limit(5))
+        for book in recent_books:
+            book['_id'] = str(book['_id'])
+            if book.get('cover_image'):
+                book['cover_image'] = book['cover_image'].replace('\\', '/')
         
         return render_template("adminDashboard.html",
                              users_count=users_count,
                              books_count=books_count,
-                             borrowed_count=borrowed_count,
-                             recent_activities=recent_activities)
+                             recent_books=recent_books)
     except Exception as e:
         print(f"Error in admin dashboard: {str(e)}")
         return render_template("adminDashboard.html",
                              users_count=0,
                              books_count=0,
-                             borrowed_count=0,
-                             recent_activities=[],
+                             recent_books=[],
                              error=str(e))
 
 @app.route("/api/pages")
@@ -195,16 +178,25 @@ def get_pages():
     ]
     return jsonify(pages)
 
-@app.route("/users")
-@login_required
+@app.route('/users')
 def users():
     try:
+        # Get all users from the database
         users = list(db.users.find())
-        users = [{**user, '_id': serialize_id(user['_id'])} for user in users]
-        return render_template("users.html", users=users)
+        
+        # Convert ObjectId to string for each user
+        for user in users:
+            user['_id'] = str(user['_id'])
+        
+        # Check user role and render appropriate template
+        if session.get('role') == 'admin':
+            return render_template('users.html', users=users)
+        else:
+            return render_template('staff_users.html', users=users)
+            
     except Exception as e:
-        print(f"Error in users page: {str(e)}")
-        return render_template("users.html", users=[], error=str(e))
+        print(f"Error in users route: {str(e)}")
+        return render_template('users.html', users=[], error="Error fetching users")
 
 @app.route("/api/users")
 def get_users():
@@ -220,20 +212,53 @@ def get_users():
 def add_user():
     return render_template("add_user.html")
 
-@app.route("/books")
-@login_required
+@app.route('/books')
 def books():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
     try:
-        books = list(db.books.find())
-        books = [{**book, '_id': serialize_id(book['_id'])} for book in books]
-        # Convert backslashes to forward slashes in cover_image paths
+        # Get filter parameters
+        department = request.args.get('department')
+        search = request.args.get('search')
+        
+        # Build query
+        query = {}
+        if department:
+            query['department'] = department
+            
+        if search:
+            query['$or'] = [
+                {'title': {'$regex': search, '$options': 'i'}},
+                {'author': {'$regex': search, '$options': 'i'}},
+                {'isbn': {'$regex': search, '$options': 'i'}}
+            ]
+        
+        # Get books from database
+        books = list(db.books.find(query))
+        
+        # Convert ObjectId to string for JSON serialization
         for book in books:
-            if book.get('cover_image'):
+            book['_id'] = str(book['_id'])
+            # Convert backslashes to forward slashes for cover_image paths
+            if 'cover_image' in book and book['cover_image']:
                 book['cover_image'] = book['cover_image'].replace('\\', '/')
-        return render_template("books.html", books=books)
+        
+        # Get unique departments for filter dropdown
+        departments = sorted(db.books.distinct('department'))
+        
+        # Get user role
+        user_role = session.get('role')
+        
+        # Render appropriate template based on user role
+        if user_role == 'admin':
+            return render_template('books.html', books=books, departments=departments)
+        else:
+            return render_template('staff_books.html', books=books, departments=departments)
+            
     except Exception as e:
-        print(f"Error in books page: {str(e)}")
-        return render_template("books.html", books=[], error=str(e))
+        print(f"Error in books route: {str(e)}")
+        return render_template('books.html', books=[], departments=[], error="An error occurred while fetching books.")
 
 @app.route("/api/books")
 def get_books():
@@ -694,23 +719,54 @@ def user_dashboard():
     if session.get('role') != 'user':
         return redirect(url_for('login'))
     try:
-        # Get user's borrowed books
-        user_id = session.get('user_id')
-        borrowed_books = list(db.books.find({'borrowed_by': user_id}))
+        # Get user's information
+        user = db.users.find_one({'userId': session.get('user_id')})
+        if not user:
+            return redirect(url_for('login'))
         
-        # Get available books
-        available_books = list(db.books.find({
+        # Get user's borrowed books (both current and returned)
+        borrowed_books = list(db.borrowed_books.find({
+            'user_id': session.get('user_id')
+        }).sort('borrowed_date', -1))  # Sort by most recent first
+        
+        # Convert ObjectId to string for borrowed books
+        for book in borrowed_books:
+            book['_id'] = str(book['_id'])
+            book['book_id'] = str(book['book_id'])
+            # Format dates for display
+            book['borrowed_date'] = book['borrowed_date'].strftime('%Y-%m-%d')
+            book['return_date'] = book['return_date'].strftime('%Y-%m-%d')
+            if 'returned_date' in book:
+                book['returned_date'] = book['returned_date'].strftime('%Y-%m-%d')
+        
+        # Get total available books count
+        available_books_count = db.books.count_documents({
             'book_count': {'$gt': {'$ifNull': ['$borrowed_count', 0]}}
-        }))
+        })
+        
+        # Get total borrowed books count (currently borrowed)
+        current_borrowed_count = db.borrowed_books.count_documents({
+            'user_id': session.get('user_id'),
+            'status': 'borrowed'
+        })
+        
+        # Get total books count
+        total_books = db.books.count_documents({})
         
         return render_template("userDashboard.html",
+                             user=user,
                              borrowed_books=borrowed_books,
-                             available_books=available_books)
+                             available_books_count=available_books_count,
+                             current_borrowed_count=current_borrowed_count,
+                             total_books=total_books)
     except Exception as e:
         print(f"Error in user dashboard: {str(e)}")
         return render_template("userDashboard.html",
+                             user={'total_penalty': 0},
                              borrowed_books=[],
-                             available_books=[],
+                             available_books_count=0,
+                             current_borrowed_count=0,
+                             total_books=0,
                              error=str(e))
 
 @app.route("/staff-dashboard")
@@ -722,23 +778,275 @@ def staff_dashboard():
         # Get counts for dashboard
         users_count = db.users.count_documents({'role': 'user'})
         books_count = db.books.count_documents({})
-        borrowed_count = sum(1 for book in db.books.find() if book.get('borrowed_count', 0) > 0)
         
-        # Get recent activities
-        recent_activities = list(db.activities.find().sort('timestamp', -1).limit(5))
+        # Get recently added books (last 5)
+        recent_books = list(db.books.find().sort('created_at', -1).limit(5))
+        for book in recent_books:
+            book['_id'] = str(book['_id'])
+            if book.get('cover_image'):
+                book['cover_image'] = book['cover_image'].replace('\\', '/')
         
         return render_template("staffDashboard.html",
                              users_count=users_count,
                              books_count=books_count,
-                             borrowed_count=borrowed_count,
-                             recent_activities=recent_activities)
+                             recent_books=recent_books)
     except Exception as e:
         print(f"Error in staff dashboard: {str(e)}")
         return render_template("staffDashboard.html",
                              users_count=0,
                              books_count=0,
-                             borrowed_count=0,
-                             recent_activities=[],
+                             recent_books=[],
+                             error=str(e))
+
+@app.route("/lend-book", methods=['GET', 'POST'])
+@login_required
+def lend_book():
+    if request.method == 'GET':
+        try:
+            # Get all books that have available copies
+            books = list(db.books.find())
+            books = [{**book, '_id': serialize_id(book['_id'])} for book in books]
+            # Convert backslashes to forward slashes in cover_image paths
+            for book in books:
+                if book.get('cover_image'):
+                    book['cover_image'] = book['cover_image'].replace('\\', '/')
+            return render_template("lend_books.html", books=books)
+        except Exception as e:
+            print(f"Error in lend_book: {str(e)}")
+            return render_template("lend_books.html", books=[], error=str(e))
+    
+    elif request.method == 'POST':
+        try:
+            book_id = request.form.get('book_id')
+            user_id = request.form.get('user_id')
+            return_date = datetime.strptime(request.form.get('return_date'), '%Y-%m-%d')
+            
+            # Get the book details
+            book = db.books.find_one({'_id': ObjectId(book_id)})
+            if not book:
+                return render_template("lend_books.html", books=list(db.books.find()), error="Book not found")
+            
+            # Check if user exists
+            user = db.users.find_one({'userId': user_id})
+            if not user:
+                return render_template("lend_books.html", books=list(db.books.find()), error="User not found")
+            
+            # Check if book has available copies
+            if book['book_count'] <= book.get('borrowed_count', 0):
+                return render_template("lend_books.html", books=list(db.books.find()), error="No copies available")
+            
+            # Create borrowed book record
+            borrowed_book = {
+                'book_id': book_id,
+                'user_id': user_id,
+                'book_title': book['title'],
+                'author': book['author'],
+                'isbn': book['isbn'],
+                'department': book['department'],
+                'borrowed_date': datetime.now(),
+                'return_date': return_date,
+                'status': 'borrowed'
+            }
+            
+            # Insert into borrowed_books collection
+            db.borrowed_books.insert_one(borrowed_book)
+            
+            # Update book's borrowed count
+            db.books.update_one(
+                {'_id': ObjectId(book_id)},
+                {'$inc': {'borrowed_count': 1}}
+            )
+            
+            # Send email notification
+            email_subject = "Book Borrowed Successfully"
+            email_body = f"""
+            <h2>Book Borrowed</h2>
+            <p>Dear {user['name']},</p>
+            <p>You have successfully borrowed the following book:</p>
+            <ul>
+                <li><strong>Title:</strong> {book['title']}</li>
+                <li><strong>Author:</strong> {book['author']}</li>
+                <li><strong>ISBN:</strong> {book['isbn']}</li>
+                <li><strong>Return Date:</strong> {return_date.strftime('%Y-%m-%d')}</li>
+            </ul>
+            <p>Please return the book by the specified return date.</p>
+            <p>Best regards,<br>Library Management System Team</p>
+            """
+            send_email(email_subject, email_body, user['email'])
+            
+            # Get updated list of books
+            books = list(db.books.find())
+            books = [{**book, '_id': serialize_id(book['_id'])} for book in books]
+            for book in books:
+                if book.get('cover_image'):
+                    book['cover_image'] = book['cover_image'].replace('\\', '/')
+            
+            return render_template("lend_books.html", books=books, message="Book lent successfully!")
+            
+        except Exception as e:
+            print(f"Error in lend_book POST: {str(e)}")
+            return render_template("lend_books.html", books=list(db.books.find()), error=str(e))
+
+@app.route("/borrowed-books")
+@login_required
+def borrowed_books():
+    try:
+        # Get filter parameters
+        status = request.args.get('status')
+        user_id = request.args.get('user_id')
+        
+        # Build query
+        query = {}
+        if status:
+            query['status'] = status
+        if user_id:
+            query['user_id'] = user_id
+        
+        # Get filtered borrowed books
+        borrowed_books = list(db.borrowed_books.find(query))
+        borrowed_books = [{**book, '_id': serialize_id(book['_id'])} for book in borrowed_books]
+        
+        # Get user names for each borrowed book
+        for book in borrowed_books:
+            user = db.users.find_one({'userId': book['user_id']})
+            if user:
+                book['user_name'] = user.get('name', 'Unknown User')
+            else:
+                book['user_name'] = 'Unknown User'
+        
+        return render_template("borrowed_books.html", borrowed_books=borrowed_books)
+    except Exception as e:
+        print(f"Error in borrowed_books: {str(e)}")
+        return render_template("borrowed_books.html", borrowed_books=[], error=str(e))
+
+@app.route("/return-book/<book_id>", methods=['POST'])
+@login_required
+def return_book(book_id):
+    try:
+        # Get the borrowed book record
+        borrowed_book = db.borrowed_books.find_one({'_id': ObjectId(book_id)})
+        if not borrowed_book:
+            return redirect(url_for('borrowed_books', error="Borrowed book record not found"))
+        
+        # Calculate days difference and penalty
+        current_date = datetime.now()
+        return_date = borrowed_book['return_date']
+        days_difference = (current_date - return_date).days
+        penalty = 0
+        
+        if days_difference > 0:
+            penalty = days_difference * 5  # Rs. 5 per day penalty
+        
+        # Update the borrowed book status and add penalty information
+        update_data = {
+            'status': 'returned',
+            'returned_date': current_date,
+            'days_late': days_difference if days_difference > 0 else 0,
+            'penalty_amount': penalty
+        }
+        
+        db.borrowed_books.update_one(
+            {'_id': ObjectId(book_id)},
+            {'$set': update_data}
+        )
+        
+        # Decrease the borrowed count in the books collection
+        db.books.update_one(
+            {'_id': ObjectId(borrowed_book['book_id'])},
+            {'$inc': {'borrowed_count': -1}}
+        )
+        
+        # Get user details and update penalty in user record
+        user = db.users.find_one({'userId': borrowed_book['user_id']})
+        if user:
+            # Update user's total penalty
+            db.users.update_one(
+                {'userId': borrowed_book['user_id']},
+                {'$inc': {'total_penalty': penalty}}
+            )
+            
+            # Send email notification with penalty information
+            email_subject = "Book Returned Successfully"
+            email_body = f"""
+            <h2>Book Returned</h2>
+            <p>Dear {user.get('name', 'User')},</p>
+            <p>The following book has been marked as returned:</p>
+            <ul>
+                <li><strong>Title:</strong> {borrowed_book['book_title']}</li>
+                <li><strong>Author:</strong> {borrowed_book['author']}</li>
+                <li><strong>ISBN:</strong> {borrowed_book['isbn']}</li>
+                <li><strong>Due Date:</strong> {return_date.strftime('%Y-%m-%d')}</li>
+                <li><strong>Returned Date:</strong> {current_date.strftime('%Y-%m-%d')}</li>
+            </ul>
+            """
+            
+            if penalty > 0:
+                email_body += f"""
+                <p><strong>Late Return Penalty:</strong></p>
+                <ul>
+                    <li>Days Late: {days_difference}</li>
+                    <li>Penalty Amount: Rs. {penalty}</li>
+                </ul>
+                <p>Please pay the penalty amount at the library counter.</p>
+                """
+            
+            email_body += """
+            <p>Thank you for returning the book!</p>
+            <p>Best regards,<br>Library Management System Team</p>
+            """
+            
+            send_email(email_subject, email_body, user.get('email'))
+        
+        return redirect(url_for('borrowed_books', message="Book returned successfully!"))
+    except Exception as e:
+        print(f"Error in return_book: {str(e)}")
+        return redirect(url_for('borrowed_books', error=str(e)))
+
+@app.route("/available-books", methods=['GET'])
+@login_required
+def available_books():
+    try:
+        # Get filter parameters
+        department = request.args.get('department')
+        search = request.args.get('search')
+        
+        # Build query
+        query = {}
+        if department:
+            query['department'] = department
+            
+        if search:
+            query['$or'] = [
+                {'title': {'$regex': search, '$options': 'i'}},
+                {'author': {'$regex': search, '$options': 'i'}},
+                {'isbn': {'$regex': search, '$options': 'i'}}
+            ]
+        
+        # Get books from database
+        books = list(db.books.find(query))
+        
+        # Convert ObjectId to string and process cover images
+        for book in books:
+            book['_id'] = str(book['_id'])
+            if book.get('cover_image'):
+                book['cover_image'] = book['cover_image'].replace('\\', '/')
+        
+        # Get unique departments for filter dropdown
+        departments = sorted(db.books.distinct('department'))
+        
+        # Get total books count
+        total_books = db.books.count_documents({})
+        
+        return render_template("available_books.html",
+                             books=books,
+                             departments=departments,
+                             total_books=total_books)
+    except Exception as e:
+        print(f"Error in available_books: {str(e)}")
+        return render_template("available_books.html",
+                             books=[],
+                             departments=[],
+                             total_books=0,
                              error=str(e))
 
 if __name__ == '__main__':

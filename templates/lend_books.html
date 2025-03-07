@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lend Books - Library Management System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body class="bg-gray-100">
+    <!-- Navigation -->
+    <nav class="bg-blue-800 text-white p-4">
+        <div class="container mx-auto flex justify-between items-center">
+            <h1 class="text-2xl font-bold">Library Management System</h1>
+            <div class="space-x-4">
+                <span class="text-blue-200">Welcome, {{ session.get('name', 'Staff') }}</span>
+                <a href="/staff-dashboard" class="hover:text-blue-200">Dashboard</a>
+                <a href="/lend-book" class="hover:text-blue-200">Lend Book</a>
+                <a href="/users" class="hover:text-blue-200">Users</a>
+                <a href="/books" class="hover:text-blue-200">Books</a>
+                <a href="/logout" class="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">Logout</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+        <div class="px-4 py-6 sm:px-0">
+            <h2 class="text-2xl font-bold text-gray-900 mb-6">Available Books</h2>
+            
+            {% if error %}
+            <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
+                <span class="block sm:inline">{{ error }}</span>
+            </div>
+            {% endif %}
+            
+            {% if message %}
+            <div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative mb-4" role="alert">
+                <span class="block sm:inline">{{ message }}</span>
+            </div>
+            {% endif %}
+            
+            <!-- Books Grid -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {% for book in books %}
+                <div class="bg-white overflow-hidden shadow rounded-lg">
+                    <div class="p-4">
+                        <div class="aspect-w-16 aspect-h-9 mb-4">
+                            {% if book.cover_image %}
+                            <img src="{{ url_for('static', filename=book.cover_image) }}" alt="{{ book.title }}" class="object-cover w-full h-48">
+                            {% else %}
+                            <div class="w-full h-48 bg-gray-200 flex items-center justify-center">
+                                <i class="fas fa-book text-4xl text-gray-400"></i>
+                            </div>
+                            {% endif %}
+                        </div>
+                        <h3 class="text-lg font-medium text-gray-900">{{ book.title }}</h3>
+                        <p class="mt-1 text-sm text-gray-500">Author: {{ book.author }}</p>
+                        <p class="mt-1 text-sm text-gray-500">ISBN: {{ book.isbn }}</p>
+                        <p class="mt-1 text-sm text-gray-500">Department: {{ book.department }}</p>
+                        <p class="mt-1 text-sm text-gray-500">Available Copies: {{ book.book_count - book.borrowed_count }}</p>
+                    </div>
+                    <div class="bg-gray-50 px-4 py-3">
+                        <button onclick="openLendModal('{{ book._id }}', '{{ book.title }}')" 
+                                class="w-full bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700">
+                            Lend Book
+                        </button>
+                    </div>
+                </div>
+                {% else %}
+                <div class="col-span-full text-center py-8">
+                    <p class="text-gray-500">No books available for lending.</p>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Lend Book Modal -->
+    <div id="lendModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden overflow-y-auto h-full w-full">
+        <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div class="mt-3">
+                <h3 class="text-lg font-medium text-gray-900 mb-4">Lend Book</h3>
+                <p id="bookTitle" class="text-sm text-gray-500 mb-4"></p>
+                <form id="lendForm" action="/lend-book" method="POST">
+                    <input type="hidden" id="bookId" name="book_id">
+                    <div class="mb-4">
+                        <label for="userId" class="block text-sm font-medium text-gray-700">User ID</label>
+                        <input type="text" id="userId" name="user_id" required
+                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                    </div>
+                    <div class="mb-4">
+                        <label for="returnDate" class="block text-sm font-medium text-gray-700">Return Date</label>
+                        <input type="date" id="returnDate" name="return_date" required
+                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                    </div>
+                    <div class="flex justify-end space-x-3">
+                        <button type="button" onclick="closeLendModal()"
+                                class="bg-gray-200 text-gray-700 px-4 py-2 rounded hover:bg-gray-300">
+                            Cancel
+                        </button>
+                        <button type="submit"
+                                class="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700">
+                            Lend Book
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function openLendModal(bookId, bookTitle) {
+            document.getElementById('lendModal').classList.remove('hidden');
+            document.getElementById('bookId').value = bookId;
+            document.getElementById('bookTitle').textContent = `Book: ${bookTitle}`;
+        }
+
+        function closeLendModal() {
+            document.getElementById('lendModal').classList.add('hidden');
+        }
+
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modal = document.getElementById('lendModal');
+            if (event.target == modal) {
+                closeLendModal();
+            }
+        }
+    </script>
+</body>
+</html> 
