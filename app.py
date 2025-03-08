@@ -448,7 +448,7 @@ def update_user(user_id):
         )
         
         if result.modified_count:
-            return redirect('/api/users')
+            return redirect('/users')
         return render_template("users.html", users=list(db.users.find()), error="User not found")
     except Exception as e:
         print(f"Error in update_user: {str(e)}")
@@ -1050,4 +1050,4 @@ def available_books():
                              error=str(e))
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5432) 
+    app.run(debug=True, port=5432,host='0.0.0.0') 
